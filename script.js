@@ -13,6 +13,7 @@ const aiInput = document.getElementById('aiInput');
 const aiSendButton = document.getElementById('aiSendButton');
 const aiFileInput = document.getElementById('aiFileInput');
 const aiNote = document.getElementById('aiNote');
+const syncStatus = document.getElementById('syncStatus');
 const postHasPollCheckbox = document.getElementById('postHasPoll');
 const pollFields = document.getElementById('pollFields');
 const pollQuestionInput = document.getElementById('pollQuestion');
@@ -35,6 +36,20 @@ const OPENAI_API_KEY = 'sk-svcacct-k-onM4ctcQiQNyBcIXojGD4WmKSopBi9Fg4tLPMNA_frE
 const OPENAI_MODEL = 'gpt-3.5-turbo';
 const POSTS_NOTIFICATION_KEY = 'vaydePostNotifications';
 let initialPostLoadComplete = false;
+
+function updateSyncStatus(message, warning = false) {
+  if (!syncStatus) return;
+  syncStatus.textContent = message;
+  syncStatus.style.borderColor = warning ? 'rgba(220, 38, 38, 0.35)' : 'rgba(15, 23, 42, 0.08)';
+  syncStatus.style.background = warning
+    ? 'rgba(254, 226, 226, 0.85)'
+    : 'rgba(255, 255, 255, 0.85)';
+  if (document.documentElement.classList.contains('dark')) {
+    syncStatus.style.background = warning
+      ? 'rgba(139, 11, 11, 0.60)'
+      : 'rgba(17, 24, 39, 0.92)';
+  }
+}
 
 function askPostNotificationsPermission() {
   if (!('Notification' in window)) return;
@@ -118,6 +133,16 @@ let firestoreReady = false;
 let db = null;
 let postsCollection = null;
 
+function checkFirestorePrerequisites() {
+  if (window.location.protocol !== 'https:'
+      && window.location.hostname !== 'localhost'
+      && window.location.hostname !== '127.0.0.1') {
+    updateSyncStatus('Firestore requiert HTTPS ou localhost. Ouvre cette page via un serveur local ou en HTTPS.', true);
+    return false;
+  }
+  return true;
+}
+
 function initFirebase() {
   const firebaseConfig = {
     apiKey: "AIzaSyC-bXkjux8eO176qnqMq8aqssi-nBMudT4",
@@ -134,9 +159,12 @@ function initFirebase() {
     db = firebase.firestore();
     postsCollection = db.collection('posts');
     firestoreReady = true;
+    updateSyncStatus('Connexion Firestore établie. Les posts de l’admin seront synchronisés.', false);
     subscribePosts();
   } catch (error) {
+    firestoreReady = false;
     console.warn('Firebase n\'a pas pu être initialisé :', error);
+    updateSyncStatus('Impossible d’initialiser Firestore. Vérifie la console pour l’erreur.', true);
   }
 }
 
@@ -176,6 +204,7 @@ function subscribePosts() {
     initialPostLoadComplete = true;
   }, error => {
     console.error('Erreur Firestore posts :', error);
+    updateSyncStatus('Erreur Firestore : impossible de charger les posts.', true);
   });
 }
 
@@ -1444,6 +1473,10 @@ function deleteAllPosts() {
   savePosts();
   renderPosts();
 
+  if (!firestoreReady) {
+    alert('La suppression globale n’est pas possible tant que Firestore n’est pas connecté.');
+  }
+
   if (firestoreReady && postsCollection) {
     postsCollection.get().then(snapshot => {
       const batch = db.batch();
@@ -1506,7 +1539,9 @@ if (isAdmin) {
 updateButtonText();
 
 window.addEventListener('load', () => {
-  initFirebase();
+  if (checkFirestorePrerequisites()) {
+    initFirebase();
+  }
   initPanelInteractions();
   askPostNotificationsPermission();
 });
