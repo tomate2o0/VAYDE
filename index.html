@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VAYDE Web</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-content">
+      <h1>Bienvenue sur VAYDE web 🎼</h1>
+      <div class="header-actions">
+        <button id="aiToggle" class="button ai-toggle-button">IA (bêta)</button>
+       
+        <button id="themeToggle" class="theme-toggle">Mode sombre</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="posts-section container" id="posts">
+      <div class="posts-header">
+        <div>
+          <h2>Posts de Vayde</h2>
+          <p>Seul l’admin peut créer un post.</p>
+        </div>
+        <button id="adminToggle" class="button button-secondary">➕</button>
+      </div>
+
+      <div id="adminPanel" class="admin-panel hidden">
+        <div class="admin-login">
+          <label for="adminPassword">Mot de passe admin</label>
+          <input id="adminPassword" type="password" placeholder="Mot de passe admin" />
+          <button type="button" id="adminLoginButton" class="button">Se connecter</button>
+        </div>
+
+        <div id="postFormContainer" class="post-form hidden">
+          <h3>Créer un nouveau post</h3>
+          <label for="postTitle">Titre</label>
+          <input id="postTitle" type="text" placeholder="Titre du post" />
+
+          <label for="postText">Texte</label>
+          <textarea id="postText" rows="4" placeholder="Ton message..."></textarea>
+
+          <label for="postMediaType">Type de média</label>
+          <select id="postMediaType">
+            <option value="none">Aucun</option>
+            <option value="image">Image</option>
+            <option value="video">Vidéo</option>
+          </select>
+
+          <label for="postMediaUrl">URL de l'image ou de la vidéo</label>
+          <input id="postMediaUrl" type="url" placeholder="https://..." />
+
+          <label for="postMediaFile">Ou veux-tu choisir un fichier image/vidéo</label>
+          <input id="postMediaFile" type="file" accept="image/*,video/*" />
+
+          <label class="checkbox-label" for="postHasPoll">
+            <input id="postHasPoll" type="checkbox" /> Ajouter un sondage
+          </label>
+
+          <div id="pollFields" class="poll-fields hidden">
+            <label for="pollQuestion">Question du sondage</label>
+            <input id="pollQuestion" type="text" placeholder="Par exemple : Quel est ton jeu préféré ?" />
+            <label class="checkbox-label" for="pollMultipleChoices">
+              <input id="pollMultipleChoices" type="checkbox" /> Autoriser plusieurs choix
+            </label>
+            <div id="pollOptionsContainer" class="poll-options-container">
+              <label>Options de sondage</label>
+              <input class="poll-option-input" type="text" placeholder="Option 1" />
+              <input class="poll-option-input" type="text" placeholder="Option 2" />
+            </div>
+            <button id="addPollOptionButton" type="button" class="button button-secondary">Ajouter une option</button>
+          </div>
+
+          <button type="button" id="addPostButton" class="button">Ajouter le post</button>
+          <p class="admin-hint">.</p>
+        </div>
+
+        <button id="deleteAllPostsButton" type="button" class="button button-secondary">Supprimer tous les posts</button>
+      </div>
+
+      <div id="postsGrid" class="posts-grid"></div>
+    </section>
+  </main>
+
+  <div id="aiChatPanel" class="ai-chat-panel hidden">
+    <div class="ai-chat-header">
+      <div>
+        <h2>Chat IA</h2>
+        <p>Pose une question simple ou envoie une image.</p>
+      </div>
+      <button id="aiClose" type="button" class="button button-secondary" onclick="closeAiChat(); return false;">Fermer</button>
+    </div>
+    <div id="aiMessages" class="ai-messages"></div>
+    <div class="ai-chat-footer">
+        <label class="ai-file-label" for="aiFileInput">+ Image</label>
+      <input id="aiFileInput" type="file" accept="image/*" />
+      <textarea id="aiInput" rows="3" placeholder="Texte limité et clair..." ></textarea>
+      <button id="aiSendButton" class="button">Envoyer</button>
+    </div>
+    <p id="aiNote" class="ai-note">L’IA répond uniquement via OpenAI.</p>
+    <div class="panel-resizer"></div>
+  </div>
+
+  <footer class="site-footer">
+    <p>© 2026 VAYDE Web. tout droit réservé.</p>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
