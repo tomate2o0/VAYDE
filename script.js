@@ -728,6 +728,8 @@ async function addPost() {
       }).catch(error => {
         console.error('Erreur création post Firestore :', error);
       });
+    } else {
+      alert('Attention : les notifications Firestore ne sont pas actives. Ce post sera stocké localement et ne sera pas visible pour tous.');
     }
   }
 
@@ -1441,6 +1443,17 @@ function deleteAllPosts() {
   posts = [];
   savePosts();
   renderPosts();
+
+  if (firestoreReady && postsCollection) {
+    postsCollection.get().then(snapshot => {
+      const batch = db.batch();
+      snapshot.forEach(doc => batch.delete(doc.ref));
+      return batch.commit();
+    }).catch(error => {
+      console.error('Erreur suppression Firestore de tous les posts :', error);
+    });
+  }
+
   alert('Tous les posts ont été supprimés.');
 }
 
