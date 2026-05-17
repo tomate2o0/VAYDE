@@ -66,6 +66,23 @@ html.dark .site-header {
   background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), transparent);
 }
 
+.sync-status {
+  width: min(1100px, calc(100% - 2rem));
+  margin: 0 auto 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #0f172a;
+  font-size: 0.95rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+html.dark .sync-status {
+  background: rgba(17, 24, 39, 0.92);
+  color: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.16);
+}
+
 .header-content {
   display: flex;
   justify-content: space-between;
