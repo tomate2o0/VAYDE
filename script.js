@@ -224,57 +224,39 @@ function initFirebase() {
 }
 
 function subscribePosts() {
+
   if (!firestoreReady || !postsCollection) return;
 
-  postsCollection.orderBy('createdAt', 'desc').onSnapshot(snapshot => {
-    const previousIds = new Set(posts.map(post => post.id));
-    const newPosts = [];
-    const remotePosts = [];
+  postsCollection
+    .orderBy("createdAt", "desc")
+    .onSnapshot((snapshot) => {
 
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      const post = normalizePostData({
-        id: doc.id,
-        title: data.title,
-        text: data.text,
-        mediaType: data.mediaType,
-        mediaUrl: data.mediaUrl,
-        likes: data.likes,
-        pollQuestion: data.pollQuestion,
-        pollOptions: data.pollOptions,
-        multipleChoices: data.multipleChoices,
-        createdAt: data.createdAt,
+      posts = [];
+
+      snapshot.forEach((doc) => {
+
+        const data = doc.data();
+
+        posts.push({
+          id: doc.id,
+          title: data.title || "",
+          text: data.text || "",
+          mediaType: data.mediaType || "none",
+          mediaUrl: data.mediaUrl || "",
+          likes: data.likes || 0,
+          pollQuestion: data.pollQuestion || "",
+          pollOptions: data.pollOptions || [],
+          multipleChoices: data.multipleChoices || false,
+          createdAt: data.createdAt || null
+        });
+
       });
-      remotePosts.push(post);
-      if (previousIds.size > 0 && !previousIds.has(post.id)) {
-        newPosts.push(post);
-      }
-    });
 
-    if (snapshot.empty && posts.length > 0 && !initialPostLoadComplete) {
-      // Garde les posts locaux si Firestore est vide au démarrage,
-      // pour éviter d'écraser des posts enregistrés localement.
-      updateSyncStatus('Aucun post Firestore trouvé : affichage des posts locaux.', false);
       renderPosts();
-      initialPostLoadComplete = true;
-      return;
-    }
 
-    const remoteIds = new Set(remotePosts.map(post => post.id));
-    const localUnsyncedPosts = posts.filter(post => !remoteIds.has(post.id));
-    posts = [...remotePosts, ...localUnsyncedPosts];
-
-    savePosts();
-    renderPosts();
-
-    if (initialPostLoadComplete) {
-      newPosts.slice(0, 3).forEach(notifyVaydePost);
-    }
-    initialPostLoadComplete = true;
-  }, error => {
-    console.error('Erreur Firestore posts :', error);
-    updateSyncStatus('Erreur Firestore : impossible de charger les posts.', true);
-  });
+    }, (error) => {
+      console.error(error);
+    });
 }
 
 function createVideoElement(url) {
