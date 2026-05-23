@@ -231,33 +231,19 @@ function subscribePosts() {
     .orderBy("createdAt", "desc")
     .onSnapshot((snapshot) => {
 
-      posts = [];
+      posts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
 
-      snapshot.forEach((doc) => {
-
-        const data = doc.data();
-
-        posts.push({
-          id: doc.id,
-          title: data.title || "",
-          text: data.text || "",
-          mediaType: data.mediaType || "none",
-          mediaUrl: data.mediaUrl || "",
-          likes: data.likes || 0,
-          pollQuestion: data.pollQuestion || "",
-          pollOptions: data.pollOptions || [],
-          multipleChoices: data.multipleChoices || false,
-          createdAt: data.createdAt || null
-        });
-
-      });
-
+      savePosts();
       renderPosts();
 
     }, (error) => {
-      console.error(error);
+      console.error("Erreur Firestore :", error);
     });
 }
+
 
 function createVideoElement(url) {
   const container = document.createElement('div');
