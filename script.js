@@ -24,6 +24,7 @@ const postMediaFileInput = document.getElementById('postMediaFile');
 const deleteAllPostsButton = document.getElementById('deleteAllPostsButton');
 
 const adminPassword = 'VAYDE3255'; // Mot de passe pour accéder au panneau admin (à changer pour plus de sécurité)
+const API_KEY = "AIzaSyA6kCu45SIk89TkPqJw8dEgjLhySsLXqM0"
 const POSTS_CACHE_KEY = 'vaydeSitePosts';
 const LIKED_POSTS_CACHE_KEY = 'vaydeLikedPosts';
 const USER_VOTES_CACHE_KEY = 'vaydeUserVotes';
@@ -1585,6 +1586,8 @@ aiFileInput.addEventListener('change', () => {
     aiFileInput.previousElementSibling.textContent = 'Image sélectionnée';
   }
 });
+
+
 
 // Initialisation
 loadPosts();
