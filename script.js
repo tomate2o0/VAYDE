@@ -721,122 +721,79 @@ function showPostForm() {
 
 async function addPost() {
   if (!isAdmin) {
-    alert('Vous devez être connecté en tant qu\'admin pour créer un post.');
+    alert("Tu dois être admin.");
     return;
   }
 
-  const title = document.getElementById('postTitle').value.trim();
-  const text = document.getElementById('postText').value.trim();
-  let mediaType = document.getElementById('postMediaType').value;
-  let mediaUrl = document.getElementById('postMediaUrl').value.trim();
+  const title = document.getElementById("postTitle").value.trim();
+  const text = document.getElementById("postText").value.trim();
+  let mediaType = document.getElementById("postMediaType").value;
+  let mediaUrl = document.getElementById("postMediaUrl").value.trim();
+
   const mediaFile = postMediaFileInput?.files?.[0];
-  const hasPoll = postHasPollCheckbox.checked;
-  const pollQuestion = hasPoll ? pollQuestionInput.value.trim() : '';
-  const multipleChoices = hasPoll ? pollMultipleChoicesCheckbox.checked : false;
-  const pollOptions = hasPoll
-    ? Array.from(document.querySelectorAll('.poll-option-input'))
-        .map(input => input.value.trim())
-        .filter(option => option)
-        .slice(0, MAX_POLL_OPTIONS)
-        .map(option => ({ text: option, votes: 0 }))
-    : [];
-
-  if (mediaFile) {
-    if (mediaFile.type.startsWith('image/')) {
-      mediaType = 'image';
-    } else if (mediaFile.type.startsWith('video/')) {
-      mediaType = 'video';
-    }
-  }
-
-  if (!title && !text && mediaType === 'none' && !hasPoll) {
-    alert('Ajoute au moins un titre, du texte, un média ou un sondage.');
-    return;
-  }
-
-  if (hasPoll && (!pollQuestion || pollOptions.length < 2)) {
-    alert('Pour ajouter un sondage, indique une question et au moins deux options valides.');
-    return;
-  }
 
   if (mediaFile) {
     try {
       mediaUrl = await readFileAsDataUrl(mediaFile);
-    } catch (error) {
-      console.error('Erreur lecture du fichier média :', error);
-      alert('Impossible de lire le fichier média. Essaie un autre fichier.');
+
+      if (mediaFile.type.startsWith("image/")) {
+        mediaType = "image";
+      } else if (mediaFile.type.startsWith("video/")) {
+        mediaType = "video";
+      }
+
+    } catch (err) {
+      console.error(err);
+      alert("Erreur fichier.");
       return;
     }
   }
 
-  const payload = {
-    title,
-    text,
-    mediaType,
-    mediaUrl,
-    pollQuestion,
-    pollOptions,
-    multipleChoices,
-  };
+  if (!title && !text && !mediaUrl) {
+    alert("Ajoute du contenu.");
+    return;
+  }
 
-  if (editingPostId) {
-    const postIndex = posts.findIndex(p => p.id === editingPostId);
-    if (postIndex !== -1) {
-      posts[postIndex] = {
-        ...posts[postIndex],
-        ...payload,
-      };
-      if (firestoreReady && postsCollection) {
-        postsCollection.doc(editingPostId).update(payload).catch(error => {
-          console.error('Erreur mise à jour post Firestore :', error);
-        });
-      }
-    }
-    editingPostId = null;
-    addPostButton.textContent = 'Ajouter le post';
-  } else {
-    const docRef = firestoreReady && postsCollection ? postsCollection.doc() : null;
-    const newPost = normalizePostData({
-      id: docRef ? docRef.id : Date.now().toString(),
+  // IMPORTANT : vérifier Firestore
+  if (!firestoreReady || !postsCollection) {
+    alert("Firestore non connecté.");
+    return;
+  }
+
+  try {
+
+    // création du post
+    const newPost = {
+      title: title,
+      text: text,
+      mediaType: mediaType,
+      mediaUrl: mediaUrl,
       likes: 0,
-      createdAt: new Date().toISOString(),
-      ...payload,
-    });
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      pollQuestion: "",
+      pollOptions: [],
+      multipleChoices: false
+    };
 
-    posts.unshift(newPost);
-    notifyVaydePost(newPost);
+    // envoi FIRESTORE
+    await postsCollection.add(newPost);
 
-    if (firestoreReady && docRef) {
-      docRef.set({
-        likes: 0,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        ...payload,
-      }).catch(error => {
-        console.error('Erreur création post Firestore :', error);
-      });
-    } else {
-      updateSyncStatus('Mode local activé : le post est sauvegardé localement.', true);
+    // reset formulaire
+    document.getElementById("postTitle").value = "";
+    document.getElementById("postText").value = "";
+    document.getElementById("postMediaUrl").value = "";
+    document.getElementById("postMediaType").value = "none";
+
+    if (postMediaFileInput) {
+      postMediaFileInput.value = "";
     }
-  }
 
-  savePosts();
-  renderPosts();
+    alert("Post publié pour tout le monde !");
 
-  document.getElementById('postTitle').value = '';
-  document.getElementById('postText').value = '';
-  document.getElementById('postMediaType').value = 'none';
-  document.getElementById('postMediaUrl').value = '';
-  if (postMediaFileInput) {
-    postMediaFileInput.value = '';
+  } catch (error) {
+    console.error("Erreur Firestore :", error);
+    alert("Erreur publication.");
   }
-  postHasPollCheckbox.checked = false;
-  togglePollFields();
-  pollQuestionInput.value = '';
-  pollMultipleChoicesCheckbox.checked = false;
-  pollOptionsContainer.innerHTML = '';
-  addPollOptionInput();
-  addPollOptionInput();
-  addPollOptionButton.disabled = false;
 }
 
 function startEditPost(postId) {
