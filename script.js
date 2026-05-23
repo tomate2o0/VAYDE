@@ -24,6 +24,13 @@ const postMediaFileInput = document.getElementById('postMediaFile');
 const deleteAllPostsButton = document.getElementById('deleteAllPostsButton');
 
 const adminPassword = 'VAYDE3255'; // Mot de passe pour accéder au panneau admin (à changer pour plus de sécurité)
+const POSTS_CACHE_KEY = 'vaydeSitePosts';
+const LIKED_POSTS_CACHE_KEY = 'vaydeLikedPosts';
+const USER_VOTES_CACHE_KEY = 'vaydeUserVotes';
+const POSTS_NOTIFICATION_KEY = 'vaydePostNotifications';
+const POSTS_COLLECTION_NAME = 'posts';
+const MAX_POLL_OPTIONS = 5;
+
 let isAdmin = localStorage.getItem('isAdmin') === 'true';
 let posts = [];
 let likedPosts = [];
@@ -34,8 +41,11 @@ let contactName = '';
 
 const OPENAI_API_KEY = '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';
 const OPENAI_MODEL = 'gpt-3.5-turbo';
-const POSTS_NOTIFICATION_KEY = 'vaydePostNotifications';
 let initialPostLoadComplete = false;
+
+let firestoreReady = false;
+let db = null;
+let postsCollection = null;
 
 function updateSyncStatus(message, warning = false) {
   if (!syncStatus) return;
@@ -49,6 +59,36 @@ function updateSyncStatus(message, warning = false) {
       ? 'rgba(139, 11, 11, 0.60)'
       : 'rgba(17, 24, 39, 0.92)';
   }
+}
+
+function normalizeCreatedAt(createdAt) {
+  if (!createdAt) return '';
+  if (typeof createdAt === 'string') return createdAt;
+  if (typeof createdAt === 'number') return new Date(createdAt).toISOString();
+  if (createdAt.toDate) return createdAt.toDate().toISOString();
+  if (createdAt.toMillis) return new Date(createdAt.toMillis()).toISOString();
+  if (typeof createdAt.seconds === 'number') return new Date(createdAt.seconds * 1000).toISOString();
+  return String(createdAt);
+}
+
+function normalizePostData(post) {
+  return {
+    id: String(post.id || ''),
+    title: post.title || '',
+    text: post.text || '',
+    mediaType: post.mediaType || 'none',
+    mediaUrl: post.mediaUrl || '',
+    likes: typeof post.likes === 'number' ? post.likes : 0,
+    pollQuestion: post.pollQuestion || '',
+    pollOptions: Array.isArray(post.pollOptions)
+      ? post.pollOptions.map(option => ({
+          text: option.text || '',
+          votes: typeof option.votes === 'number' ? option.votes : 0,
+        }))
+      : [],
+    multipleChoices: typeof post.multipleChoices === 'boolean' ? post.multipleChoices : false,
+    createdAt: normalizeCreatedAt(post.createdAt),
+  };
 }
 
 function askPostNotificationsPermission() {
@@ -110,28 +150,41 @@ function readFileAsDataUrl(file) {
 }
 
 function loadPosts() {
-  const stored = localStorage.getItem('sitePosts');
-  posts = stored ? JSON.parse(stored) : [];
-  posts.forEach(post => {
-    if (typeof post.likes !== 'number') post.likes = 0;
-    if (typeof post.pollQuestion !== 'string') post.pollQuestion = '';
-    if (!Array.isArray(post.pollOptions)) post.pollOptions = [];
-    post.pollOptions = post.pollOptions.map(option => ({
-      text: option.text || '',
-      votes: typeof option.votes === 'number' ? option.votes : 0,
-    }));
-    if (typeof post.multipleChoices !== 'boolean') post.multipleChoices = false;
-  });
-  likedPosts = JSON.parse(localStorage.getItem('likedPosts')) || [];
+  try {
+    const stored = localStorage.getItem(POSTS_CACHE_KEY);
+    posts = stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.warn('Impossible de lire les posts locaux, réinitialisation.', error);
+    posts = [];
+  }
+  posts = posts.map(normalizePostData);
+
+  try {
+    likedPosts = JSON.parse(localStorage.getItem(LIKED_POSTS_CACHE_KEY)) || [];
+  } catch (error) {
+    likedPosts = [];
+  }
 }
 
 function savePosts() {
-  localStorage.setItem('sitePosts', JSON.stringify(posts));
+  localStorage.setItem(POSTS_CACHE_KEY, JSON.stringify(posts));
 }
 
-let firestoreReady = false;
-let db = null;
-let postsCollection = null;
+function loadVotedPolls() {
+  try {
+    userVotes = JSON.parse(localStorage.getItem(USER_VOTES_CACHE_KEY)) || {};
+  } catch (error) {
+    userVotes = {};
+  }
+}
+
+function saveVotedPolls() {
+  localStorage.setItem(USER_VOTES_CACHE_KEY, JSON.stringify(userVotes));
+}
+
+function saveLikedPosts() {
+  localStorage.setItem(LIKED_POSTS_CACHE_KEY, JSON.stringify(likedPosts));
+}
 
 function checkFirestorePrerequisites() {
   if (window.location.protocol !== 'https:'
@@ -147,17 +200,18 @@ function initFirebase() {
   const firebaseConfig = {
     apiKey: "AIzaSyC-bXkjux8eO176qnqMq8aqssi-nBMudT4",
     authDomain: "vayde-web-bb08b.firebaseapp.com",
+    databaseURL: "https://vayde-web-bb08b-default-rtdb.europe-west1.firebasedatabase.app",
     projectId: "vayde-web-bb08b",
     storageBucket: "vayde-web-bb08b.firebasestorage.app",
     messagingSenderId: "466275486686",
-    appId: "1:466275486686:web:db890c0e59ad0b46e62b4f",
-    measurementId: "G-EDGT3HV5NS"
+    appId: "1:466275486686:web:19a0c2b915e4f72de62b4f",
+    measurementId: "G-SR723DR4W7"
   };
 
   try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
-    postsCollection = db.collection('posts');
+    postsCollection = db.collection(POSTS_COLLECTION_NAME);
     firestoreReady = true;
     updateSyncStatus('Connexion Firestore établie. Les posts de l’admin seront synchronisés.', false);
     subscribePosts();
@@ -169,35 +223,49 @@ function initFirebase() {
 }
 
 function subscribePosts() {
-  if (!firestoreReady) return;
+  if (!firestoreReady || !postsCollection) return;
+
   postsCollection.orderBy('createdAt', 'desc').onSnapshot(snapshot => {
     const previousIds = new Set(posts.map(post => post.id));
     const newPosts = [];
-    posts = [];
+    const remotePosts = [];
+
     snapshot.forEach(doc => {
       const data = doc.data();
-      const post = {
+      const post = normalizePostData({
         id: doc.id,
-        title: data.title || '',
-        text: data.text || '',
-        mediaType: data.mediaType || 'none',
-        mediaUrl: data.mediaUrl || '',
-        likes: typeof data.likes === 'number' ? data.likes : 0,
-        pollQuestion: data.pollQuestion || '',
-        pollOptions: Array.isArray(data.pollOptions) ? data.pollOptions.map(option => ({
-          text: option.text || '',
-          votes: typeof option.votes === 'number' ? option.votes : 0,
-        })) : [],
-        multipleChoices: typeof data.multipleChoices === 'boolean' ? data.multipleChoices : false,
-        createdAt: data.createdAt || ''
-      };
-      posts.push(post);
+        title: data.title,
+        text: data.text,
+        mediaType: data.mediaType,
+        mediaUrl: data.mediaUrl,
+        likes: data.likes,
+        pollQuestion: data.pollQuestion,
+        pollOptions: data.pollOptions,
+        multipleChoices: data.multipleChoices,
+        createdAt: data.createdAt,
+      });
+      remotePosts.push(post);
       if (previousIds.size > 0 && !previousIds.has(post.id)) {
         newPosts.push(post);
       }
     });
+
+    if (snapshot.empty && posts.length > 0 && !initialPostLoadComplete) {
+      // Garde les posts locaux si Firestore est vide au démarrage,
+      // pour éviter d'écraser des posts enregistrés localement.
+      updateSyncStatus('Aucun post Firestore trouvé : affichage des posts locaux.', false);
+      renderPosts();
+      initialPostLoadComplete = true;
+      return;
+    }
+
+    const remoteIds = new Set(remotePosts.map(post => post.id));
+    const localUnsyncedPosts = posts.filter(post => !remoteIds.has(post.id));
+    posts = [...remotePosts, ...localUnsyncedPosts];
+
     savePosts();
     renderPosts();
+
     if (initialPostLoadComplete) {
       newPosts.slice(0, 3).forEach(notifyVaydePost);
     }
@@ -206,18 +274,6 @@ function subscribePosts() {
     console.error('Erreur Firestore posts :', error);
     updateSyncStatus('Erreur Firestore : impossible de charger les posts.', true);
   });
-}
-
-function saveLikedPosts() {
-  localStorage.setItem('likedPosts', JSON.stringify(likedPosts));
-}
-
-function loadVotedPolls() {
-  userVotes = JSON.parse(localStorage.getItem('userVotes')) || {};
-}
-
-function saveVotedPolls() {
-  localStorage.setItem('userVotes', JSON.stringify(userVotes));
 }
 
 function createVideoElement(url) {
@@ -663,7 +719,6 @@ function showPostForm() {
 }
 
 async function addPost() {
-  // Vérifier que l'utilisateur est admin
   if (!isAdmin) {
     alert('Vous devez être connecté en tant qu\'admin pour créer un post.');
     return;
@@ -681,7 +736,7 @@ async function addPost() {
     ? Array.from(document.querySelectorAll('.poll-option-input'))
         .map(input => input.value.trim())
         .filter(option => option)
-        .slice(0, 5)
+        .slice(0, MAX_POLL_OPTIONS)
         .map(option => ({ text: option, votes: 0 }))
     : [];
 
@@ -713,7 +768,7 @@ async function addPost() {
     }
   }
 
-  const postData = {
+  const payload = {
     title,
     text,
     mediaType,
@@ -724,46 +779,48 @@ async function addPost() {
   };
 
   if (editingPostId) {
-    // Modification d'un post existant
     const postIndex = posts.findIndex(p => p.id === editingPostId);
     if (postIndex !== -1) {
       posts[postIndex] = {
         ...posts[postIndex],
-        ...postData,
+        ...payload,
       };
-      if (firestoreReady) {
-        postsCollection.doc(editingPostId).update(postData).catch(error => {
+      if (firestoreReady && postsCollection) {
+        postsCollection.doc(editingPostId).update(payload).catch(error => {
           console.error('Erreur mise à jour post Firestore :', error);
         });
       }
     }
     editingPostId = null;
-    document.getElementById('addPostButton').textContent = 'Ajouter le post';
+    addPostButton.textContent = 'Ajouter le post';
   } else {
-    // Création d'un nouveau post
-    const newPost = {
-      id: Date.now().toString(),
+    const docRef = firestoreReady && postsCollection ? postsCollection.doc() : null;
+    const newPost = normalizePostData({
+      id: docRef ? docRef.id : Date.now().toString(),
       likes: 0,
       createdAt: new Date().toISOString(),
-      ...postData,
-    };
+      ...payload,
+    });
+
     posts.unshift(newPost);
     notifyVaydePost(newPost);
-    if (firestoreReady) {
-      postsCollection.doc(newPost.id).set({
+
+    if (firestoreReady && docRef) {
+      docRef.set({
         likes: 0,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        ...postData,
+        ...payload,
       }).catch(error => {
         console.error('Erreur création post Firestore :', error);
       });
     } else {
-      alert('Attention : les notifications Firestore ne sont pas actives. Ce post sera stocké localement et ne sera pas visible pour tous.');
+      updateSyncStatus('Mode local activé : le post est sauvegardé localement.', true);
     }
   }
 
   savePosts();
   renderPosts();
+
   document.getElementById('postTitle').value = '';
   document.getElementById('postText').value = '';
   document.getElementById('postMediaType').value = 'none';
@@ -1541,6 +1598,8 @@ updateButtonText();
 window.addEventListener('load', () => {
   if (checkFirestorePrerequisites()) {
     initFirebase();
+  } else {
+    updateSyncStatus('Mode local activé : Firestore n’est pas disponible, les posts restent en local.', true);
   }
   initPanelInteractions();
   askPostNotificationsPermission();
